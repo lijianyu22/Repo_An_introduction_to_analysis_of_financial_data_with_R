@@ -1,35 +1,65 @@
+# read data, use table, param header
 da=read.table("w-petroprice.txt",header = T)
 da1=read.table("w-gasoline.txt")
+# set as log func
 pus=log(da$US)
 pgs=log(da1[,1])
+# transfer the discrete data to series.
 tdx=c(1:717)/52+1997
+# plot as some mode.
 par(mfcol=c(2,1))
 plot(tdx,pgs,xlab='year',ylab='ln(price)',type='l')
 title(main='(a) Gasline')
 plot(tdx,pus,xlab='year',ylab='ln(price)',type='l')
 title(main='(b) Crude oil')
+# diff the ts data, get stable data.
 dpgs=diff(pgs)
 acf(dpgs,lag=20)
 pacf(dpgs,lag=20)
+
+# 1.从acf和pacf数据来看，acf具备五阶相关，且偏指数下降 -> AR模型
+# 2.pacf前五阶明显，且第一阶最为明显，说明与第一阶强烈相关，相关程度比其他阶次都高
+# s:考虑AR(5)
 m1=ar(diff(pgs),method = 'mle')
+# 使用ar()直接拟合，主要参数1.系数协方差矩阵va.coef -> 每个系数的标准误差 -> t值（>=2 ？可以估计出该参数对整个模型影响程度
+#  2.AIC （R2） 
 t.test(dpgs)
-m1=arima(dpgs,order=c(5,0,0),include.mean = F)
+
+# 使用arima（）来拟合，c(5,0,0)为(AR,DIF,MA)，比如其与ar()区别，发现几无区别；
+m2=arima(dpgs,order=c(5,0,0),include.mean = F)
+# 使用fixed函数来去除影响小系数
 m1=arima(dpgs,order=c(5,0,0),include.mean = F,fixed = c(NA,NA,NA,0,NA))
+# 残差计算，三张图：1.标准化残差的分布 2. 残差的ACF PACF，观察残差是否有相关性；
 tsdiag(m1,gof=20)
+
+#  加入pus，即外部变量
+# 
+# 
 dpus=diff(pus)
+# lm( ~1 + x) 含义为添加两者的线性关系并包含常数项
 m3=lm(dpgs~1+dpus)
+# 观察残差，发现残差仍具备相关性，且R2为33%，不是很接近1
+# 注：因变量，自变量的关系用R2，而其他模型一般用AIC BIC
+# 再注：m3输出没有特定的r，但是有r.squared
 acf(m3$residuals,lag=20)
 pacf(m3$residuals,lag=20)
+summary(m3)$r.squared
+
+# 使用arima中的xreg=dpus自动拟合，同时以相同方式去因子
 m4=ar(m3$residuals,method='mle')
 m4=arima(dpgs,order=c(6,0,0),include.mean = F,xreg=dpus)
 m4=arima(dpgs,order=c(5,0,0),include.mean = F,xreg=dpus)
 m4=arima(dpgs,order=c(5,0,0),include.mean = F,xreg=dpus,fixed = c(NA,NA,NA,0,NA,NA))
 tsdiag(m4,gof=20)
+
+# 回测函数，从序列的第316个开始预测
 c1=c(NA,NA,NA,0,NA)
 source('backtest.R')
 pm1=backtest(m1,dpgs,316,1,fixed = c1,inc.mean = F)
 c4=c(NA,NA,NA,0,NA,NA)
 pm4=backtest(m4,dpgs,316,1,xre=dpus,inc.mean = F,fixed = c4)
+
+# 预测结果绘图
 tdx=tdx[2:717]
 pm4fit=dpgs[317:716]-pm4$error
 pm1fit=dpgs[317:716]-pm1$error
@@ -37,15 +67,39 @@ plot(tdx[317:716],dpgs[317:716],xlab='year',ylab='growth',type='l')
 points(tdx[317:716],pm1fit,pch='*')
 plot(tdx[317:716],dpgs[317:716],xlab='year',ylab='growth',type='l')
 points(tdx[317:716],pm4fit,pch='*')
+
+# 滞后一个周期，lm -> ar -> arima -> bt
 m6=lm(dpgs[2:716]~-1+dpus[1:715])
 acf(m6$residuals,lag=20)
 pacf(m6$residuals,lag=20)
+
 m7=ar(m6$residuals,method = 'mle')
 m7=arima(dpgs[2:716],order = c(9,0,0),xreg=dpus[1:715],include.mean = F)
 m7=arima(dpgs[2:716],order=c(9,0,0),xreg=dpus[1:715],include.mean = F,fixed=c(NA,NA,NA,0,NA,0,0,0,NA,NA))
 tsdiag(m7,gof=20)
 c7=c(NA,NA,NA,0,NA,0,0,0,NA,NA)
 pm7=backtest(m7,dpgs[2:716],315,1,xre=dpus[1:715],inc.mean = F,fixed = c7)
+
+# 预测结果展示：
+# 经典模型
+# [1] "RMSE of out-of-sample forecasts"
+# [1] 0.02171235
+# [1] "Mean absolute error of out-of-sample forecasts"
+# [1] 0.01537881
+# 
+# # 带其他参数的模型
+# [1] "RMSE of out-of-sample forecasts"
+# [1] 0.01925732
+# [1] "Mean absolute error of out-of-sample forecasts"
+# [1] 0.01285104
+# 
+# # 带其他参数（滞后一个周期）的模型
+# [1] "RMSE of out-of-sample forecasts"
+# [1] 0.0216638
+# [1] "Mean absolute error of out-of-sample forecasts"
+# [1] 0.01548401
+# 可以看出，经典模型效果 - 带其他参数
+
 
 Gt=scan(file='m-GLBTs.txt')
 Gtemp=ts(Gt,frequency = 12,start = c(1880,1))

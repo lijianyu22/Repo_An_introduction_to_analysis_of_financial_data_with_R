@@ -7,17 +7,25 @@
 # fixed: parameter constriant
 # inc.mean: flag for constant term of the model.
 #
+  
+# 模型参数提取
 regor=c(m1$arma[1],m1$arma[6],m1$arma[2])
 seaor=list(order=c(m1$arma[3],m1$arma[7],m1$arma[4]),period=m1$arma[5])
+
+# 数据处理
 T=length(rt)
 if(!is.null(xre) && !is.matrix(xre))xre=as.matrix(xre)
 ncx=ncol(xre)
 if(orig > T)orig=T
 if(h < 1) h=1
+
+# 初始化数据
 rmse=rep(0,h)
 mabso=rep(0,h)
 nori=T-orig
 err=matrix(0,nori,h)
+
+
 jlast=T-1
 for (n in orig:jlast){
  jcnt=n-orig+1
