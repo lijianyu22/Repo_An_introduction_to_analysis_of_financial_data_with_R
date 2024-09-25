@@ -25,7 +25,7 @@ mabso=rep(0,h)
 nori=T-orig
 err=matrix(0,nori,h)
 
-
+# 滚动窗口预测
 jlast=T-1
 for (n in orig:jlast){
  jcnt=n-orig+1

@@ -101,27 +101,62 @@ pm7=backtest(m7,dpgs[2:716],315,1,xre=dpus[1:715],inc.mean = F,fixed = c7)
 # 可以看出，经典模型效果 - 带其他参数
 
 
+# 全球温度变化数据研究
+# 
+# 观察数据的一阶差分特点，基于此给出ARIMA模型的预估
 Gt=scan(file='m-GLBTs.txt')
 Gtemp=ts(Gt,frequency = 12,start = c(1880,1))
 plot(Gtemp,xlab='year',ylab='temperature',type='l')
+par(mfcol=c(2,1))
 acf(diff(Gt),lag=36)
 pacf(diff(Gt),lag=36)
+
+# 1. AR 一阶主 2. MA 两阶（非指数） 3. 可以看出季节性，在24，12处
 m1=arima(Gt,order=c(1,1,2))
+tsdiag(m1,gof=20)
 acf(m1$residuals,lag=36)
-m1=arima(Gt,order = c(1,1,2),seasonal = list(order=c(0,0,1),period=24))
+
+# 添加季节参数
+season = list(order=c(0,0,1),period=24)
+m2=arima(Gt,order = c(1,1,2),seasonal = list(order=c(0,0,1),period=24))
 tsdiag(m1,gof=36)
+
+# 比较两个模型
+source('backtest.R')
+pm1=backtest(m1,Gt[2:716],315,1,inc.mean = F)
+pm2=backtest(m2,Gt[2:716],315,1,inc.mean = F)
+#  AIC基本无差距，回测也是，说明24阶季节性影响很小
+
+# [1] "RMSE of out-of-sample forecasts"
+# [1] 15.74282
+# [1] "Mean absolute error of out-of-sample forecasts"
+# [1] 12.3788
+# > pm2=backtest(m2,Gt[2:716],315,1,inc.mean = F)
+# [1] "RMSE of out-of-sample forecasts"
+# [1] 15.66913
+# [1] "Mean absolute error of out-of-sample forecasts"
+# [1] 12.29691
+
+#  通过和时间趋势做解释，看到残差在8,29阶次有显著。
 time=c(1:1568)
 m2=lm(Gt~time)
 par(mfcol=c(2,1))
 acf(m2$residuals,lag=36)
+pacf(m2$residuals,lag=36)
+# 为什么非差分，使用AR2 MA1加时间可以消除。
+# 由于时间吗，那为什么是2和1
 m2=arima(Gt,order = c(2,0,1),xreg=time)
 tsdiag(m2,gof=36)
-m2=arima(Gt,order=c(2,0,1),seasonal = list(order=c(0,0,1),period=24),xreg=time)
-tsdiag(m2,gof=36)
-source('backtest.R')
+
+m3=arima(Gt,order=c(2,0,1),seasonal = list(order=c(0,0,1),period=24),xreg=time)
+tsdiag(m3,gof=36)
+
+
 pm1=backtest(m1,Gt,1368,1)
 time=as.matrix(time)
 pm2=backtest(m2,Gt,1368,1,xre=time)
+
+
 time=c(1:1568)
 time1=c(rep(0,1212),time[1213:1568])
 mm1=lm(Gt~time+time1)
